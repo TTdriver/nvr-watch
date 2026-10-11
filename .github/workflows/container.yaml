@@ -37,7 +37,8 @@ jobs:
           python container.test.py --url http://127.0.0.1:18090 --verify-persistence
       - name: Container logs on failure
         if: failure()
-        run: docker compose -f compose.build.yaml -f compose.test.yaml logs | sed -E 's/(Initial administrator access code: ).*/\1[redacted]/'
+        run: |
+          docker compose -f compose.build.yaml -f compose.test.yaml logs | sed -E 's/(Initial administrator access code: ).*/\1[redacted]/'
       - name: Clean up test deployment
         if: always()
         run: docker compose -f compose.build.yaml -f compose.test.yaml down --volumes
