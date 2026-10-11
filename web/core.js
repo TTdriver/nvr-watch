@@ -1,0 +1,9 @@
+export function dayKey(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+export function dayBounds(key){const [y,m,d]=key.split('-').map(Number);return {start:new Date(y,m-1,d).getTime()/1000,end:new Date(y,m-1,d+1).getTime()/1000};}
+export function durationLabel(seconds){if(!Number.isFinite(seconds)||seconds<=0)return 'Duration unavailable';const h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60),s=Math.floor(seconds%60);return [h?`${h}h`:null,m?`${m}m`:null,!h&&!m?`${s}s`:null].filter(Boolean).join(' ');}
+export function cameraData(rows){return rows.filter(c=>!c.group&&c.optionValue&&c.optionValue!=='index'&&!String(c.optionValue).startsWith('+')&&!String(c.optionValue).startsWith('@')).map(c=>({id:String(c.optionValue),name:String(c.optionDisplay||c.name||c.optionValue),online:typeof c.isOnline==='boolean'?c.isOnline:typeof c.online==='boolean'?c.online:null}));}
+export function normalizeClip(c){const path=String(c.clip||c.path||'');const seconds=Math.max(0,Number(c.msec||0)/1000);return {...c,path,camera:String(c.camera||''),date:Number(c.date)||0,seconds,id:String(c.path||path),thumbPath:String(c.path||path),mediaOffset:Math.max(0,Number(c.offset||0)/1000),start:Number(c.date)||0,end:(Number(c.date)||0)+seconds};}
+export function overlaps(c,b){return c.start<b.end&&(c.end>b.start||(!c.seconds&&c.start>=b.start));}
+export function clipAt(clips,time){return clips.filter(c=>c.start<=time&&c.end>time).sort((a,b)=>b.start-a.start)[0]||null;}
+export function safePath(path){const parts=String(path).split('/');if(parts.some(p=>p==='.'||p==='..'))throw new Error('Invalid recording path.');return parts.map(encodeURIComponent).join('/');}
+export function mediaURL(base,path,session,params={}){const q=new URLSearchParams(params);if(session)q.set('session',session);return new URL(path+'?'+q,base).href;}

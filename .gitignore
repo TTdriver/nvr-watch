@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
+/data/
+settings.json
+config.json
+encryption.key
+admin-access-code
+*.log
+*.mp4
+*.bvr
+*.zip
+verification.json

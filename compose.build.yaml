@@ -1,0 +1,18 @@
+services:
+  nvr-watch:
+    build: .
+    image: nvr-watch:local
+    restart: unless-stopped
+    ports:
+      - "${NVR_WATCH_PORT:-8090}:8090"
+    volumes:
+      - nvr-watch-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+volumes:
+  nvr-watch-data:

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Settings · NVR Watch</title><link rel="stylesheet" href="styles.css?v=14"></head>
+<body class="settings-page"><main class="settings-layout">
+<header class="settings-header"><a href="/" class="settings-brand">◉ NVR Watch</a><a href="/" class="text-button">Back to playback ↗</a></header>
+<div class="settings-heading"><span class="eyebrow">ADMINISTRATION</span><h1>Your recorder connection.</h1><p>Configure the Blue Iris web server that this portal connects to.</p></div>
+<div id="settingsMessage" class="notice" role="status" hidden></div>
+<section id="adminUnlock" class="settings-card" hidden><h2>Administrator access</h2><p>Sign in with a Blue Iris administrator account, or enter this installation’s administrator access code. For a new Docker installation, find the initial code in the container logs.</p><form id="unlockForm"><label>Administrator access code<input id="adminCode" type="password" autocomplete="off" required></label><button type="submit" class="secondary">Unlock settings</button></form></section>
+<form id="settingsForm" hidden>
+<section class="settings-card"><div class="settings-section-title"><h2>Blue Iris server</h2><span id="connectionBadge" class="pill">Not configured</span></div><p>Use the IP address or hostname of the computer running Blue Iris. Its web server must be enabled.</p><div class="settings-fields">
+<label>Protocol<select id="biScheme"><option value="http">HTTP</option><option value="https">HTTPS</option></select></label>
+<label class="wide">IP address or hostname<input id="biHostname" type="text" placeholder="recorder.local" required autocomplete="off" maxlength="253"></label>
+<label>Web server port<input id="biPort" type="number" min="1" max="65535" value="81" required></label>
+</div></section>
+<section class="settings-card"><h2>Blue Iris account</h2><p>Used for connection tests and the administrator’s “Open playback” button. Other visitors still sign in with their own BI accounts and permissions.</p><div class="settings-fields credentials"><label>Username<input id="biUsername" autocomplete="off" required maxlength="128"></label><label>Password<input id="biPassword" type="password" autocomplete="new-password" maxlength="1024"></label></div><p id="passwordNote" class="muted">Enter the existing account’s password.</p></section>
+<section class="settings-card"><h2>Refresh</h2><label>Camera list refresh interval (seconds)<input id="refreshInterval" type="number" min="10" max="300" value="30" required></label><p>This refreshes camera availability in the sidebar. It does not change camera frame rates or recording settings.</p></section>
+<div class="settings-actions"><button id="testConnection" type="button" class="secondary">Test connection</button><button id="saveSettings" type="submit" class="login-submit">Save settings</button><button id="openSaved" type="button" class="text-button" hidden>Open playback ↗</button><button id="lockSettings" type="button" class="text-button">Lock settings</button></div>
+</form><p class="settings-footnote">Settings are stored by the portal. Saved passwords are encrypted and are never returned to this page.</p>
+</main><script type="module" src="settings.js?v=14"></script></body></html>

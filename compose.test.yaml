@@ -1,0 +1,12 @@
+# Only used by the project's integration tests. No real recorder connection.
+services:
+  bi-reference:
+    image: nvr-watch:local
+    command: ["python", "/mock.py"]
+    volumes:
+      - ./tests/fake-bi.py:/mock.py:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/healthz',timeout=3).read()"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
