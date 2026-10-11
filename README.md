@@ -174,7 +174,7 @@ This deployment uses local-network HTTP. For remote access, put the portal behin
 
 ## Run without Docker
 
-The original Python service remains supported. You need Python 3.10 or newer and the pinned dependency:
+The original Python service remains supported. You need Python 3.10 or newer with venv support and the pinned dependencies. On Debian/Ubuntu, install `python3-venv` if Python reports that ensurepip is missing:
 
 ```bash
 python3 -m venv .venv

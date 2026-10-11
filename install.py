@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Install NVR Watch for the current Linux user, without sudo."""
-import argparse,json,shutil,subprocess,sys,venv
+import argparse,importlib.util,json,shutil,subprocess,sys,venv
 from pathlib import Path
 from server import parse_options
 
@@ -50,6 +50,7 @@ def main():
  if sys.platform!='linux':parser.error('The service installer is for Linux. On Windows or macOS, run server.py directly.')
  root=Path.home();app=root/'.local/share/nvr-watch';config=root/'.config/nvr-watch';units=root/'.config/systemd/user'
  try:
+  if importlib.util.find_spec('ensurepip') is None:parser.exit(1,'The Linux installer needs Python venv support. On Debian/Ubuntu, install python3-venv first. Docker needs no host Python installation.\n')
   app.mkdir(parents=True,exist_ok=True)
   environment=app/'.venv';venv.EnvBuilder(with_pip=True).create(environment)
   executable=environment/'bin/python'
