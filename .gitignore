@@ -14,3 +14,5 @@ admin-access-code
 *.bvr
 *.zip
 verification.json
+
+sessions.encrypted

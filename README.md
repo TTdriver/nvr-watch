@@ -84,13 +84,13 @@ The first launch opens the recorder connection form:
 4. Enter an existing Blue Iris administrator username and password.
 5. Select **Test connection**, then **Save and open playback**.
 
-Saving verifies administrator access, stores the connection, and signs you in. Future visitors sign in with their own Blue Iris accounts. Camera and recording permissions come from Blue Iris. Administrators can open **Settings** after sign-in; ordinary accounts cannot change the connection.
+Saving verifies administrator access, stores the connection, and signs you in. Future visitors sign in with their own Blue Iris accounts. Sign-in lasts seven days from login, including browser and portal restarts. Blue Iris sessions are renewed with encrypted per-user credentials when needed. Signing out ends the session immediately; changed credentials or revoked permissions can require a new sign-in. Camera and recording permissions come from Blue Iris. Administrators can open **Settings** after sign-in; ordinary accounts cannot change the connection.
 
 Saved passwords are encrypted and never returned to the browser. A blank password field keeps the saved password. Old access-code files are ignored by the current source.
 
 ## Persistent settings and backups
 
-The named data volume stores the connection settings and encryption key. Keep the same volume when recreating or updating the container. Do not use `docker compose down --volumes` if you want to retain settings.
+The named data volume stores the connection settings, encryption key, and encrypted seven-day sign-in sessions. Keep the same volume when recreating or updating the container. Do not use `docker compose down --volumes` if you want to retain settings.
 
 For a source-built Compose deployment, back up settings from the project folder:
 

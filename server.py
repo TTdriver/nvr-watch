@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from exports import ExportManager,ExportError
 from settings import SettingsStore,SettingsError
+from cryptography.fernet import InvalidToken
 
 WEB=Path(__file__).resolve().parent/'web'
 SESSIONS={}; LOCK=threading.RLock(); ATTEMPTS={}
@@ -13,6 +14,7 @@ READ_COMMANDS={'camlist','cliplist','alertlist','status','login'}
 FIELDS={'camlist':set(),'cliplist':{'camera','startdate','enddate','view','search','tiles'},'alertlist':{'camera','startdate','enddate','view','search','tiles'},'status':set(),'login':set()}
 MEDIA_KEYS={'mode','speed','time','pos','w','h','q','stream','t','nc','addmotion','addoverlay','extend','isolate','opaque'}
 COOKIE='nvrwatch_session'
+SESSION_SECONDS=7*24*60*60
 
 def upstream_json(base, payload):
  req=urllib.request.Request(base+'/json',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'},method='POST')
@@ -34,6 +36,22 @@ def connection_error(error):
  if isinstance(error,urllib.error.HTTPError):return 'The server returned HTTP '+str(error.code)+'. Check the address, port and Blue Iris web-server configuration.'
  return 'Cannot reach Blue Iris. Check its address, protocol and port, then the firewall and routing between the portal and recorder.'
 
+def persist_sessions(server):
+ store=server.settings
+ with store.lock:
+  with LOCK:
+   records={token:{k:v for k,v in record.items() if not k.startswith('_')} for token,record in SESSIONS.items() if record['expires']>time.time()}
+  store.write(store.folder/'sessions.encrypted',store.fernet.encrypt(json.dumps(records).encode()))
+
+def load_sessions(store,base):
+ path=store.folder/'sessions.encrypted'
+ if not path.exists():return {}
+ try:
+  records=json.loads(store.fernet.decrypt(path.read_bytes()))
+  return {token:record for token,record in records.items() if isinstance(record,dict) and record.get('expires',0)>time.time() and record.get('base')==base and all(isinstance(record.get(k),str) for k in ['bi','username','password'])}
+ except (OSError,ValueError,TypeError,AttributeError,InvalidToken):return {}
+
+
 class Handler(BaseHTTPRequestHandler):
  protocol_version='HTTP/1.1'
  def log_message(self,*args):pass  # Media URLs and credentials are never logged.
@@ -43,34 +61,58 @@ class Handler(BaseHTTPRequestHandler):
   blob=json.dumps(data).encode();self.send_response(code);self.headers_common();self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(blob)))
   if cookie:self.send_header('Set-Cookie',cookie)
   self.end_headers();self.wfile.write(blob)
- def auth(self):
+ def auth(self,force=False):
   try:c=http.cookies.SimpleCookie();c.load(self.headers.get('Cookie',''));token=c[COOKIE].value
   except (KeyError,http.cookies.CookieError):return None,None
   with LOCK:
    record=SESSIONS.get(token)
-   if not record or time.monotonic()-record['last']>43200:
-    SESSIONS.pop(token,None);return None,None
-   record['last']=time.monotonic();return token,record['bi']
+   if not record:return None,None
+   expired=record['expires']<=time.time() or record['base']!=self.server.bi
+   if expired:SESSIONS.pop(token,None)
+   else:refresh_lock=record.setdefault('_refresh_lock',threading.RLock())
+  if expired:persist_sessions(self.server);return None,None
+  with refresh_lock:
+   if force or time.monotonic()-record.get('_checked',0)>25:
+    try:
+     result=upstream_json(self.server.bi,{'cmd':'login','session':record['bi']})
+     if result.get('result')=='success':bi=result.get('session') or record['bi']
+     else:bi,_=recorder_login(self.server.bi,record['username'],record['password'])
+    except SettingsError:
+     with LOCK:SESSIONS.pop(token,None)
+     persist_sessions(self.server);return None,None
+    except (OSError,ValueError):return token,record['bi']
+    with LOCK:
+     if SESSIONS.get(token) is not record:return None,None
+     record['bi']=bi;record['_checked']=time.monotonic()
+    persist_sessions(self.server)
+   with LOCK:
+    if SESSIONS.get(token) is not record:return None,None
+    return token,record['bi']
  def unauthorized(self):self.send_json(401,{'result':'fail','data':{'reason':'Sign-in required.'}})
  def admin(self):
   _,bi=self.auth()
   if bi:
    try:
     result=upstream_json(self.server.bi,{'cmd':'login','session':bi})
+    if result.get('result')!='success':
+     _,bi=self.auth(force=True)
+     if not bi:return False
+     result=upstream_json(self.server.bi,{'cmd':'login','session':bi})
     return result.get('result')=='success' and bool(result.get('data',{}).get('admin'))
    except (OSError,ValueError):pass
   return False
  def require_admin(self):
   if self.admin():return True
   self.send_json(403,{'result':'fail','data':{'reason':'Administrator access is required.'}});return False
- def open_session(self,bi,result):
-  token=secrets.token_urlsafe(32);now=time.monotonic()
+ def open_session(self,bi,result,user,password):
+  token=secrets.token_urlsafe(32);now=time.time()
+  old,_=self.auth()
   with LOCK:
-   for old in [k for k,v in SESSIONS.items() if now-v['last']>43200]:SESSIONS.pop(old,None)
-   old,_=self.auth()
+   for expired in [k for k,v in SESSIONS.items() if v['expires']<=now]:SESSIONS.pop(expired,None)
    if old:SESSIONS.pop(old,None)
-   SESSIONS[token]={'bi':bi,'last':now}
-  self.send_json(200,{'result':'success','data':public_login(result.get('data'))},f'{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/')
+   SESSIONS[token]={'bi':bi,'base':self.server.bi,'username':user,'password':password,'expires':now+SESSION_SECONDS,'_checked':time.monotonic()}
+  persist_sessions(self.server)
+  self.send_json(200,{'result':'success','data':public_login(result.get('data'))},f'{COOKIE}={token}; Max-Age={SESSION_SECONDS}; HttpOnly; SameSite=Strict; Path=/')
  def do_POST(self):
   origin=self.headers.get('Origin')
   if origin and urllib.parse.urlsplit(origin).netloc!=self.headers.get('Host'):
@@ -94,7 +136,7 @@ class Handler(BaseHTTPRequestHandler):
    try:
     if path=='/api/login-saved':
      store=self.server.settings
-     bi,result=recorder_login(self.server.bi,store.data.get('username',''),store.password());self.open_session(bi,result);return
+     bi,result=recorder_login(self.server.bi,store.data.get('username',''),store.password());self.open_session(bi,result,store.data.get('username',''),store.password());return
     candidate=self.server.settings.candidate(body)
     bi,result=recorder_login(candidate['bi'],candidate['username'],candidate['password'])
     if not result.get('data',{}).get('admin'):
@@ -111,7 +153,7 @@ class Handler(BaseHTTPRequestHandler):
       if before!=self.server.bi:
        with LOCK:SESSIONS.clear()
        self.server.exports=ExportManager(self.server.bi,upstream_json)
-      self.open_session(bi,result)
+      self.open_session(bi,result,candidate['username'],candidate['password'])
     else:self.send_json(200,{'result':'success','data':{'connected':True,'cameras':count,'version':result.get('data',{}).get('version'),'clipcreate':bool(result.get('data',{}).get('clipcreate'))}})
    except SettingsError as e:self.send_json(400,{'result':'fail','data':{'reason':str(e)}})
    except (OSError,ValueError,TypeError) as e:self.send_json(502,{'result':'fail','data':{'reason':connection_error(e)}})
@@ -131,11 +173,11 @@ class Handler(BaseHTTPRequestHandler):
     if not bi:raise ValueError('No authentication challenge')
     response=hashlib.md5(f'{user}:{bi}:{password}'.encode()).hexdigest()
     result=upstream_json(self.server.bi,{'cmd':'login','session':bi,'response':response})
-    password=None;body.clear()
+    body.clear()
     if result.get('result')!='success':self.send_json(401,{'result':'fail','data':{'reason':'BI did not accept those credentials.'}});return
     with LOCK:
      ATTEMPTS.pop(ip,None)
-    self.open_session(result.get('session') or bi,result)
+    self.open_session(result.get('session') or bi,result,user,password);password=None
    except (OSError,ValueError):self.send_json(502,{'result':'fail','data':{'reason':'The BI recorder is unavailable. Check that BI is running.'}})
    return
   cancellation=re.fullmatch(r'/api/exports/([A-Za-z0-9_-]+)/cancel',path)
@@ -159,6 +201,7 @@ class Handler(BaseHTTPRequestHandler):
   cmd=body.get('cmd')
   if cmd=='logout':
    with LOCK:SESSIONS.pop(token,None)
+   persist_sessions(self.server)
    try:upstream_json(self.server.bi,{'cmd':'logout','session':bi})
    except (OSError,ValueError):pass
    self.send_json(200,{'result':'success','data':{}},f'{COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');return
@@ -167,12 +210,15 @@ class Handler(BaseHTTPRequestHandler):
   try:
    result=upstream_json(self.server.bi,payload)
    if str(result.get('data',{}).get('reason','') if isinstance(result.get('data'),dict) else '').upper()=='INVALID SESSION':
-    with LOCK:SESSIONS.pop(token,None)
-    self.unauthorized();return
+    token,bi=self.auth(force=True)
+    if not bi:self.unauthorized();return
+    payload['session']=bi;result=upstream_json(self.server.bi,payload)
+    if result.get('result')!='success':self.unauthorized();return
    if cmd=='login' and result.get('result')=='success':
     if result.get('session'):
      with LOCK:
       if token in SESSIONS:SESSIONS[token]['bi']=result['session']
+     persist_sessions(self.server)
     result['data']=public_login(result.get('data'))
    result.pop('session',None);self.send_json(200,result)
   except (OSError,ValueError):self.send_json(502,{'result':'fail','data':{'reason':'The BI recorder is unavailable. Try again shortly.'}})
@@ -284,9 +330,14 @@ def main():
  args=parse_options()
  store=SettingsStore(args.data_dir,{'bi':args.bi.rstrip('/')})
  server=ThreadingHTTPServer((args.host,args.port),Handler);server.daemon_threads=True;server.settings=store;server.bi=store.data.get('bi') or args.bi.rstrip('/');server.refresh_interval=store.data['refresh_interval'];server.exports=ExportManager(server.bi,upstream_json)
+ with LOCK:SESSIONS.update(load_sessions(store,server.bi))
  def housekeeping():
   while True:
    time.sleep(5);server.exports.cleanup_expired()
+   with LOCK:
+    expired=[token for token,record in SESSIONS.items() if record['expires']<=time.time()]
+    for token in expired:SESSIONS.pop(token,None)
+   if expired:persist_sessions(server)
  threading.Thread(target=housekeeping,daemon=True).start()
  print(f'NVR Watch listening on port {args.port}',flush=True);server.serve_forever()
 if __name__=='__main__':main()
