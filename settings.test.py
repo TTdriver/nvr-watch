@@ -4,14 +4,13 @@ from settings import SettingsStore,SettingsError
 class SettingsTests(unittest.TestCase):
  def test_encrypted_persistence_and_redaction(self):
   with tempfile.TemporaryDirectory() as folder:
-   store=SettingsStore(folder);code=(Path(folder)/'admin-access-code').read_text().strip()
-   self.assertTrue(store.check_code(code));self.assertFalse(store.check_code('wrong'))
+   store=SettingsStore(folder)
+   self.assertFalse((Path(folder)/'admin-access-code').exists())
    candidate=store.candidate({'scheme':'http','hostname':'recorder.local','port':81,'username':'viewer','password':'private-test-password','refresh_interval':20})
    store.save(candidate)
    self.assertNotIn('private-test-password',(Path(folder)/'settings.json').read_text())
    self.assertNotIn('password',store.public());self.assertTrue(store.public()['password_saved'])
    recreated=SettingsStore(folder);self.assertEqual(recreated.password(),'private-test-password');self.assertEqual(recreated.public()['hostname'],'recorder.local')
-   self.assertTrue(recreated.check_code(code));self.assertFalse(recreated.new_admin_code)
    self.assertEqual((Path(folder)/'settings.json').stat().st_mode&0o777,0o600)
  def test_validation_and_keep_password(self):
   with tempfile.TemporaryDirectory() as folder:

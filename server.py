@@ -9,7 +9,6 @@ from settings import SettingsStore,SettingsError
 
 WEB=Path(__file__).resolve().parent/'web'
 SESSIONS={}; LOCK=threading.RLock(); ATTEMPTS={}
-ADMIN_SESSIONS={};ADMIN_COOKIE='nvrwatch_admin'
 READ_COMMANDS={'camlist','cliplist','alertlist','status','login'}
 FIELDS={'camlist':set(),'cliplist':{'camera','startdate','enddate','view','search','tiles'},'alertlist':{'camera','startdate','enddate','view','search','tiles'},'status':set(),'login':set()}
 MEDIA_KEYS={'mode','speed','time','pos','w','h','q','stream','t','nc','addmotion','addoverlay','extend','isolate','opaque'}
@@ -54,15 +53,11 @@ class Handler(BaseHTTPRequestHandler):
    record['last']=time.monotonic();return token,record['bi']
  def unauthorized(self):self.send_json(401,{'result':'fail','data':{'reason':'Sign-in required.'}})
  def admin(self):
-  try:
-   cookies=http.cookies.SimpleCookie();cookies.load(self.headers.get('Cookie',''));token=cookies[ADMIN_COOKIE].value
-   with LOCK:
-    if ADMIN_SESSIONS.get(token,0)>time.monotonic():return True
-    ADMIN_SESSIONS.pop(token,None)
-  except (KeyError,http.cookies.CookieError):pass
   _,bi=self.auth()
   if bi:
-   try:return bool(upstream_json(self.server.bi,{'cmd':'login','session':bi}).get('data',{}).get('admin'))
+   try:
+    result=upstream_json(self.server.bi,{'cmd':'login','session':bi})
+    return result.get('result')=='success' and bool(result.get('data',{}).get('admin'))
    except (OSError,ValueError):pass
   return False
  def require_admin(self):
@@ -87,40 +82,36 @@ class Handler(BaseHTTPRequestHandler):
    if not isinstance(body,dict):raise ValueError()
   except (ValueError,UnicodeError):self.send_json(400,{'result':'fail','data':{'reason':'Invalid request.'}});return
   path=urllib.parse.urlsplit(self.path).path
-  if path=='/api/admin/login':
-   ip='admin:'+self.client_address[0];now=time.monotonic()
-   with LOCK:
-    recent=[t for t in ATTEMPTS.get(ip,[]) if now-t<60];ATTEMPTS[ip]=recent
-    if len(recent)>=8:self.send_json(429,{'result':'fail','data':{'reason':'Too many attempts. Wait a minute.'}});return
-    recent.append(now)
-   if not self.server.settings.check_code(body.get('code')):
-    self.send_json(403,{'result':'fail','data':{'reason':'Administrator access code was not accepted.'}});return
-   token=secrets.token_urlsafe(32)
-   with LOCK:ADMIN_SESSIONS[token]=now+43200;ATTEMPTS.pop(ip,None)
-   self.send_json(200,{'result':'success','data':{}},f'{ADMIN_COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/');return
-  if path=='/api/admin/logout':
-   cookies=http.cookies.SimpleCookie();cookies.load(self.headers.get('Cookie',''))
-   if ADMIN_COOKIE in cookies:
-    with LOCK:ADMIN_SESSIONS.pop(cookies[ADMIN_COOKIE].value,None)
-   self.send_json(200,{'result':'success','data':{}},f'{ADMIN_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');return
   if path in {'/api/settings/test','/api/settings','/api/login-saved'}:
-   if not self.require_admin():return
+   setup=not self.server.settings.public()['configured']
+   if (not setup or path=='/api/login-saved') and not self.require_admin():return
+   if setup:
+    ip='setup:'+self.client_address[0];now=time.monotonic()
+    with LOCK:
+     recent=[t for t in ATTEMPTS.get(ip,[]) if now-t<60];ATTEMPTS[ip]=recent
+     if len(recent)>=8:self.send_json(429,{'result':'fail','data':{'reason':'Too many attempts. Wait a minute.'}});return
+     recent.append(now)
    try:
     if path=='/api/login-saved':
      store=self.server.settings
      bi,result=recorder_login(self.server.bi,store.data.get('username',''),store.password());self.open_session(bi,result);return
     candidate=self.server.settings.candidate(body)
     bi,result=recorder_login(candidate['bi'],candidate['username'],candidate['password'])
+    if not result.get('data',{}).get('admin'):
+     self.send_json(403,{'result':'fail','data':{'reason':'Use a Blue Iris administrator account to configure the recorder.'}});return
     cameras=upstream_json(candidate['bi'],{'cmd':'camlist','session':bi})
     if cameras.get('result')!='success':raise SettingsError('Signed in, but camera access failed. Check the BI account permissions.')
     count=len([c for c in cameras.get('data',[]) if c.get('optionValue') and not c.get('group') and c.get('optionValue')!='index' and not str(c.get('optionValue')).startswith(('+','@'))])
     if path=='/api/settings':
-     before=self.server.bi;data=self.server.settings.save(candidate)
-     self.server.bi=candidate['bi'];self.server.refresh_interval=candidate['refresh_interval']
-     if before!=self.server.bi:
-      with LOCK:SESSIONS.clear()
-      self.server.exports=ExportManager(self.server.bi,upstream_json)
-     self.send_json(200,{'result':'success','data':data})
+     with self.server.settings.lock:
+      if setup and self.server.settings.public()['configured']:
+       self.send_json(409,{'result':'fail','data':{'reason':'Setup is already complete. Sign in with your Blue Iris administrator account.'}});return
+      before=self.server.bi;data=self.server.settings.save(candidate)
+      self.server.bi=candidate['bi'];self.server.refresh_interval=candidate['refresh_interval']
+      if before!=self.server.bi:
+       with LOCK:SESSIONS.clear()
+       self.server.exports=ExportManager(self.server.bi,upstream_json)
+      self.open_session(bi,result)
     else:self.send_json(200,{'result':'success','data':{'connected':True,'cameras':count,'version':result.get('data',{}).get('version'),'clipcreate':bool(result.get('data',{}).get('clipcreate'))}})
    except SettingsError as e:self.send_json(400,{'result':'fail','data':{'reason':str(e)}})
    except (OSError,ValueError,TypeError) as e:self.send_json(502,{'result':'fail','data':{'reason':connection_error(e)}})
@@ -192,7 +183,7 @@ class Handler(BaseHTTPRequestHandler):
    store=getattr(self.server,'settings',None)
    self.send_json(200,{'result':'success','data':{'configured':bool(store and store.public()['configured']),'refresh_interval':getattr(self.server,'refresh_interval',30)}});return
   if path=='/api/settings':
-   if not self.require_admin():return
+   if self.server.settings.public()['configured'] and not self.require_admin():return
    self.send_json(200,{'result':'success','data':self.server.settings.public()});return
   export=re.fullmatch(r'/api/exports/([A-Za-z0-9_-]+)/(status|download)',path)
   if export:
@@ -257,6 +248,8 @@ class Handler(BaseHTTPRequestHandler):
    return
   if path.startswith('/api/'):
    self.send_json(404,{'result':'fail'});return
+  if path in {'/','/index.html','/index.htm','/login.html'} and not self.server.settings.public()['configured']:
+   self.send_response(302);self.headers_common();self.send_header('Location','/settings.html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers();return
   relative='index.html' if path=='/' else path.lstrip('/')
   if relative not in {'index.html','index.htm','login.html','login.js','styles.css','app.js','core.js','sample.svg','settings.html','settings.js'}:
    self.send_json(404,{'result':'fail'});return
@@ -291,7 +284,6 @@ def main():
  args=parse_options()
  store=SettingsStore(args.data_dir,{'bi':args.bi.rstrip('/')})
  server=ThreadingHTTPServer((args.host,args.port),Handler);server.daemon_threads=True;server.settings=store;server.bi=store.data.get('bi') or args.bi.rstrip('/');server.refresh_interval=store.data['refresh_interval'];server.exports=ExportManager(server.bi,upstream_json)
- if store.new_admin_code:print('Initial administrator access code: '+(store.folder/'admin-access-code').read_text().strip(),flush=True)
  def housekeeping():
   while True:
    time.sleep(5);server.exports.cleanup_expired()

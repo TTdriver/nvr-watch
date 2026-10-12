@@ -10,7 +10,7 @@ My Blue Iris web-server URL is: [complete address and port]
 
 Use the published versioned GHCR image and the project's compose.yaml. Keep the /data volume persistent, use the normal Docker network, and do not add a fixed subnet. Do not change my router, VLANs, BI recording/storage settings or existing footage.
 
-Start the container, verify its health, and show me where to find its initial administrator access code. Let me enter that code and my existing BI credentials myself in the settings page. Verify Test connection, Save settings and playback. Settings must survive container recreation. If testing a download, use an existing short recording and remove only the generated export copy.
+Build the current source, start the container, verify its health, and open the first-run connection form. Let me enter the recorder details and my existing BI administrator credentials myself in the settings page. Do not use the older 1.0.0 prebuilt image for this flow. Verify Test connection, Save settings and playback. Settings must survive container recreation. If testing a download, use an existing short recording and remove only the generated export copy.
 
-Explain the container address, persistent volume, updates and settings backup. Tell me that browser playback currently has no audio; MP4 downloads retain audio when available. Do not put my passwords, private network details, encryption key, access code or footage in a repository or public report.
+Explain the container address, persistent volume, updates and settings backup. Tell me that browser playback currently has no audio; MP4 downloads retain audio when available. Do not put my passwords, private network details, encryption key or footage in a repository or public report.
 ```

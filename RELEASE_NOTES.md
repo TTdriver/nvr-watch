@@ -1,3 +1,14 @@
+# Unreleased
+
+- Replace the installation access code with first-run recorder connection setup.
+- Verify a Blue Iris administrator account before saving, then sign that user in.
+- Use Blue Iris administrator sessions for later Settings access; ordinary users retain their existing camera and recording permissions.
+- Ignore old access-code files and remove the code authentication endpoint.
+- Allow the Settings page to scroll to its action buttons and tighten header spacing.
+- Update automated checks for first-run setup and administrator sign-in after container recreation.
+
+The published 1.0.0 image is unchanged. Build the current source to use these updates.
+
 # NVR Watch 1.0.0
 
 Initial packaged release of the existing NVR Watch portal.

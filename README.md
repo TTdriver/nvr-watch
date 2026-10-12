@@ -47,17 +47,15 @@ If you use HTTPS, BI must present a certificate trusted by the container. Certif
 
 ## Install with Docker Compose
 
-On your Docker host:
+The current source includes first-run connection setup and Blue Iris administrator sign-in without a separate access code. The published `1.0.0` image predates this change; build from source to use this flow. On your Docker host:
 
 ```bash
-mkdir -p nvr-watch
+git clone https://github.com/TTdriver/nvr-watch.git
 cd nvr-watch
-curl -fsSLO https://raw.githubusercontent.com/TTdriver/nvr-watch/v1.0.0/compose.yaml
-docker compose up -d
-docker compose logs nvr-watch
+docker compose -f compose.build.yaml up --build -d
 ```
 
-The first startup prints an **Initial administrator access code** in the container logs. Save that code privately; it protects the settings page and is also stored in the persistent data volume. It is generated separately for every installation and is not embedded in the image.
+On first launch, the portal opens the recorder connection form automatically. Enter the recorder address and an existing Blue Iris administrator account. Connection details are saved only after Blue Iris verifies administrator access. No separate portal account or access code is required.
 
 Open:
 
@@ -65,18 +63,18 @@ Open:
 http://DOCKER_HOST_ADDRESS:8090/settings.html
 ```
 
-Enter the administrator access code, then:
+For initial setup:
 
 1. Choose HTTP or HTTPS.
 2. Enter your BI IP address or hostname, without a protocol or port in that field.
 3. Enter the BI web-server port.
-4. Enter the existing BI username and password.
+4. Enter an existing BI administrator username and password.
 5. Click **Test connection**.
-6. Click **Save settings**, then **Open playback**.
+6. Click **Save and open playback**. This saves the connection and signs you in.
 
 The password field becomes empty after saving. “Saved — leave blank to keep it” means the encrypted password is retained. Enter a replacement only if you want to update it.
 
-Other visitors use `http://DOCKER_HOST_ADDRESS:8090/` and sign in with their own BI accounts. BI administrators can access Settings after signing in; ordinary BI users cannot. The local administrator access code also works when BI is unavailable.
+Other visitors use `http://DOCKER_HOST_ADDRESS:8090/` and sign in with their own BI accounts. BI administrators can access Settings after signing in; ordinary BI users cannot. Settings access requires a reachable BI server and an administrator account. Any old `admin-access-code` file in an existing volume is ignored.
 
 To check the container:
 
@@ -91,7 +89,7 @@ The health check verifies the portal itself. A disconnected BI server does not m
 
 In a standalone Docker environment, open **Stacks → Add stack**. Name the stack `nvr-watch`. Paste the contents of this repository's `compose.yaml` into the Web editor and deploy it.
 
-Use **Containers → nvr-watch container → Logs** to find the initial administrator access code. Then open the Docker host on port 8090 and configure the recorder as described above.
+Open the Docker host on port 8090 and configure the recorder as described above. For the new setup flow before a new image release is published, build the current source on the Docker host and deploy that local image in Portainer.
 
 The Compose file uses a named volume for `/data` and `restart: unless-stopped`. There are no fixed IP addresses, custom subnets or `ipam` settings. Docker chooses the normal network from the host's configured address pools. The Docker host's existing network configuration must already avoid overlap with your LAN/VLANs.
 
@@ -105,7 +103,7 @@ The application still listens on 8090 inside its container.
 
 ## Persistent settings and updates
 
-The named `nvr-watch-data` volume stores `settings.json`, `encryption.key` and `admin-access-code`. Settings survive container restart, removal/recreation and upgrades as long as that volume is retained. Do not use `docker compose down --volumes` on an installation whose settings you want to keep.
+The named `nvr-watch-data` volume stores `settings.json` and `encryption.key`. Settings survive container restart, removal/recreation and upgrades as long as that volume is retained. Do not use `docker compose down --volumes` on an installation whose settings you want to keep.
 
 To update, select the desired published version by setting `NVR_WATCH_TAG` in `.env` or Portainer's stack variables. Then:
 
@@ -127,7 +125,7 @@ umask 077
 docker compose exec -T nvr-watch python -c "import tarfile,sys; tarfile.open(fileobj=sys.stdout.buffer,mode='w|gz').add('/data',arcname='data')" > nvr-watch-settings.tar.gz
 ```
 
-Protect the backup: it includes the encryption key and administrator access code. It does not include camera footage.
+Protect the backup: it includes the encryption key and encrypted connection credentials. It does not include camera footage.
 
 To restore your own trusted backup to a running deployment, then reload it:
 
@@ -148,13 +146,7 @@ Abandoned exports are checked for cleanup after an hour while the service and BI
 
 ## Troubleshooting
 
-**The settings page asks for a code.** Read the initial code from container logs, or recover it from your protected volume/backup. With Compose:
-
-```bash
-docker compose exec -T nvr-watch cat /data/admin-access-code
-```
-
-Keep the result private. A BI administrator can also sign in normally and access Settings.
+**The settings page asks for a code.** You are running the older 1.0.0 image. Build the current source for first-run setup without an access code. Once configured, sign in with your Blue Iris administrator account to access Settings.
 
 **Cannot reach Blue Iris.** Check the recorder address, selected protocol and port. Confirm its web server is enabled. Test from the Docker host, then check Windows Firewall and routing/firewall rules between VLANs. Use an address reachable by the container; browser access from a different network does not prove container access.
 
@@ -182,7 +174,7 @@ python3 -m venv .venv
 .venv/bin/python server.py --port 8090 --data-dir ./data
 ```
 
-Configure the recorder through `/settings.html` using the generated access code. On Windows, create the environment with `py -3 -m venv .venv` and use `.venv\Scripts\python.exe` instead. No Linux system service is installed by these commands.
+Open the portal and complete first-run connection setup using an existing Blue Iris administrator account. On Windows, create the environment with `py -3 -m venv .venv` and use `.venv\Scripts\python.exe` instead. No Linux system service is installed by these commands.
 
 The optional `install.py` installer installs a Linux user service. Its application files go in `~/.local/share/nvr-watch/`, persistent settings in `~/.config/nvr-watch/`, and its service in `~/.config/systemd/user/nvr-watch.service`. It starts with the user manager, normally at login. It does not configure automatic desktop login. See `python install.py --help`.
 

@@ -14,8 +14,8 @@ class FakeBI(BaseHTTPRequestHandler):
   if session not in sessions:self.reply({'result':'fail','data':{'reason':'INVALID SESSION'}});return
   if cmd=='login':
    response=p.get('response')
-   if response and response!=hashlib.md5(f'test-viewer:{session}:{password}'.encode()).hexdigest():self.reply({'result':'fail','data':{'reason':'Invalid login'}});return
-   self.reply({'result':'success','session':session,'data':{'admin':False,'clips':True,'clipcreate':True,'audio':True,'version':'fixture'}});return
+   if response and response!=hashlib.md5(f'test-admin:{session}:{password}'.encode()).hexdigest():self.reply({'result':'fail','data':{'reason':'Invalid login'}});return
+   self.reply({'result':'success','session':session,'data':{'admin':True,'clips':True,'clipcreate':True,'audio':True,'version':'fixture'}});return
   data=[]
   if cmd=='camlist':data=[{'optionValue':'cam1','optionDisplay':'Test camera','isOnline':True}]
   self.reply({'result':'success','data':data})

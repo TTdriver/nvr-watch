@@ -1,5 +1,5 @@
-"""Persistent recorder settings and local administrator access."""
-import hashlib,hmac,ipaddress,json,os,re,secrets,tempfile,threading
+"""Persistent recorder settings."""
+import ipaddress,json,os,re,tempfile,threading
 from pathlib import Path
 from urllib.parse import urlsplit
 from cryptography.fernet import Fernet,InvalidToken
@@ -13,10 +13,6 @@ class SettingsStore:
   keyfile=self.folder/'encryption.key'
   if not keyfile.exists():self.write(keyfile,Fernet.generate_key())
   self.fernet=Fernet(keyfile.read_bytes())
-  tokenfile=self.folder/'admin-access-code'
-  self.new_admin_code=not tokenfile.exists()
-  if self.new_admin_code:self.write(tokenfile,secrets.token_urlsafe(32).encode())
-  self.admin_digest=hashlib.sha256(tokenfile.read_bytes().strip()).digest()
   self.data=json.loads(self.path.read_text()) if self.path.exists() else dict(initial or {})
   self.data.setdefault('refresh_interval',30)
  def write(self,path,blob):
@@ -27,8 +23,6 @@ class SettingsStore:
    os.replace(name,path)
   finally:
    if os.path.exists(name):os.unlink(name)
- def check_code(self,code):
-  return isinstance(code,str) and hmac.compare_digest(hashlib.sha256(code.encode()).digest(),self.admin_digest)
  def public(self):
   with self.lock:
    url=urlsplit(self.data.get('bi',''))

@@ -12,7 +12,7 @@ The application ran as a Linux user service. A persistent JSON file selected the
 
 An administrator settings page, persistent encrypted BI credentials, connection testing, configurable metadata refresh, Docker packaging and publishing workflows. Existing BI account sign-ins are preserved. Stored service credentials are available only to administrators through the saved-account sign-in action; they are never sent back to the browser.
 
-The container keeps its configuration, encryption key and installation-specific administrator code under /data. CLI connection arguments can seed a new installation; saved web settings take precedence afterward.
+The container keeps its configuration and encryption key under /data. First-run setup verifies a BI administrator account; later settings access uses the signed-in BI administrator session. CLI connection arguments can seed a new installation; saved web settings take precedence afterward.
 
 ## Current limits
 
