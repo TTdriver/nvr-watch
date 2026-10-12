@@ -141,3 +141,9 @@ python3 -m venv .venv
 Open the portal and complete the same first-run setup. The optional Linux user-service installer is available through `python install.py --help`.
 
 A source-only ZIP can be created with `python build-package.py`. It excludes instance settings, credentials, logs, and footage. For an installation prompt to give an AI assistant, see [AI-SETUP.md](AI-SETUP.md).
+
+## Give Thanks
+
+If you’d like to say thanks by buying me a drink or helping cover AI tokens, it’s appreciated.
+
+[Give Thanks](https://thanks.kerchnerlabs.com)
