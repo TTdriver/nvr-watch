@@ -1,6 +1,6 @@
 services:
   nvr-watch:
-    image: ghcr.io/ttdriver/nvr-watch:${NVR_WATCH_TAG:-1.0.0}
+    image: ghcr.io/ttdriver/nvr-watch:${NVR_WATCH_TAG:-1.1.0}
     restart: unless-stopped
     ports:
       - "${NVR_WATCH_PORT:-8090}:8090"

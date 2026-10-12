@@ -8,8 +8,7 @@ Read README.md and the Compose files first.
 
 My Docker host is: [host and operating system]
 
-Build the current source using compose.build.yaml to get the current first-run
-setup flow. Keep the /data volume persistent. If port 8090 is occupied, select
+Install the published ghcr.io/ttdriver/nvr-watch:1.1.0 image using compose.yaml. Keep the /data volume persistent. If port 8090 is occupied, select
 an available port using NVR_WATCH_PORT. Preserve the host's network settings.
 
 Start the container and open the portal. Let me enter the Blue Iris address,

@@ -21,12 +21,13 @@ For MP4 downloads, the account needs permission to create/export clips. Automati
 
 ## Install with Docker Compose
 
-The current source uses first-run connection setup without a separate access code. The published `1.0.0` image predates this update, so build from source for the current flow:
+Install the versioned Docker image:
 
 ```bash
-git clone https://github.com/TTdriver/nvr-watch.git
+mkdir -p nvr-watch
 cd nvr-watch
-docker compose -f compose.build.yaml up --build -d
+curl -fsSLO https://raw.githubusercontent.com/TTdriver/nvr-watch/v1.1.0/compose.yaml
+docker compose up -d
 ```
 
 Open `http://DOCKER_HOST_ADDRESS:8090/` in your browser.
@@ -41,21 +42,12 @@ Start the deployment again and open the selected port.
 
 ## Install with Portainer
 
-Build the current source on the Docker host first:
-
-```bash
-git clone https://github.com/TTdriver/nvr-watch.git
-cd nvr-watch
-docker build -t nvr-watch:local .
-```
-
 In Portainer, select the Docker environment and open **Stacks → Add stack**. Name the stack `nvr-watch`, then paste this into the web editor:
 
 ```yaml
 services:
   nvr-watch:
-    image: nvr-watch:local
-    pull_policy: never
+    image: ghcr.io/ttdriver/nvr-watch:1.1.0
     restart: unless-stopped
     ports:
       - "8090:8090"
@@ -92,27 +84,35 @@ Saved passwords are encrypted and never returned to the browser. A blank passwor
 
 The named data volume stores the connection settings, encryption key, and encrypted seven-day sign-in sessions. Keep the same volume when recreating or updating the container. Do not use `docker compose down --volumes` if you want to retain settings.
 
-For a source-built Compose deployment, back up settings from the project folder:
+Back up settings from the Compose project folder:
 
 ```bash
 umask 077
-docker compose -f compose.build.yaml exec -T nvr-watch python -c "import tarfile,sys; tarfile.open(fileobj=sys.stdout.buffer,mode='w|gz').add('/data',arcname='data')" > nvr-watch-settings.tar.gz
+docker compose exec -T nvr-watch python -c "import tarfile,sys; tarfile.open(fileobj=sys.stdout.buffer,mode='w|gz').add('/data',arcname='data')" > nvr-watch-settings.tar.gz
 ```
 
 Protect this backup: it contains encrypted credentials and the key needed to decrypt them. It does not contain footage.
 
 ## Updates
 
-For a source-built Compose deployment:
+Set the desired image tag with `NVR_WATCH_TAG` in `.env`, then run:
 
 ```bash
-git pull --ff-only
+docker compose pull
+docker compose up -d
+```
+
+In Portainer, change the image version in the stack editor and redeploy with image pulling enabled. Retain the data volume.
+
+### Build from source instead
+
+```bash
+git clone https://github.com/TTdriver/nvr-watch.git
+cd nvr-watch
 docker compose -f compose.build.yaml up --build -d
 ```
 
-For Portainer, rebuild `nvr-watch:local` from the updated source on the same Docker host, then redeploy the stack using the local image. Retain its data volume.
-
-The separate `compose.yaml` uses published GHCR images. Until a newer release is published, its default `1.0.0` image still uses the older setup flow.
+To update a source build, run `git pull --ff-only` and repeat the build command.
 
 ## Troubleshooting
 
@@ -120,7 +120,7 @@ The separate `compose.yaml` uses published GHCR images. Until a newer release is
 - **Blue Iris unavailable:** confirm its address, web-server port, authentication, and network access from the Docker host.
 - **Sign-in rejected:** use a Blue Iris account. Initial setup and Settings require administrator access.
 - **Settings requires sign-in:** sign in with a Blue Iris administrator account. It requires a reachable recorder.
-- **Settings still asks for an access code:** you are using the older 1.0.0 image. Build the current source.
+- **Settings still asks for an access code:** you are using the older 1.0.0 image. Update to 1.1.0 or newer.
 - **HTTPS connection fails:** use a certificate trusted by the container. Certificate validation is enabled.
 - **Settings disappeared:** confirm the deployment still mounts its original data volume.
 

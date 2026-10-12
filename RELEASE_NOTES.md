@@ -1,6 +1,6 @@
 # Updates
 
-## Current source
+## 1.1.0 — October 12, 2026
 
 - First-run connection form using a Blue Iris administrator account.
 - Blue Iris account sign-in and administrator-only Settings access.
@@ -9,7 +9,7 @@
 - Immediate session removal on sign-out; changed credentials or revoked permissions may require sign-in again.
 - Subtle Give Thanks links in the app, with the playback link beside the time zone.
 
-The published 1.0.0 image predates these changes. Build from current source to use them.
+Docker image: `ghcr.io/ttdriver/nvr-watch:1.1.0` (AMD64 and ARM64).
 
 ## 1.0.0
 
