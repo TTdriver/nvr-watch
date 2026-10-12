@@ -9,7 +9,7 @@ def unit_quote(value):
 
 def install(app,config,units,bi=None,port=None,start=True,python_executable=None):
  source=Path(__file__).resolve().parent
- settings=json.loads((config/'config.json').read_text()) if (config/'config.json').exists() else {'bi':'http://127.0.0.1:8081','host':'0.0.0.0','port':8090}
+ settings=json.loads((config/'config.json').read_text()) if (config/'config.json').exists() else {'bi':'','host':'0.0.0.0','port':8090}
  if bi is not None:settings['bi']=bi
  if port is not None:settings['port']=port
  # Validate before writing or changing any service.

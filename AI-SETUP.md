@@ -1,16 +1,22 @@
-# Copy this into your own AI assistant
+# Install with an AI assistant
 
-This prompt installs the existing NVR Watch project against your own Blue Iris server. The human instructions are in README.md. Replace the bracketed values before pasting.
+Copy this prompt and fill in your Docker host. Enter recorder credentials directly in the application.
 
 ```text
-Help me install NVR Watch from https://github.com/TTdriver/nvr-watch. Read the README and current Compose files first. Keep the existing application; do not rebuild its interface from scratch.
+Help me install NVR Watch from https://github.com/TTdriver/nvr-watch.
+Read README.md and the Compose files first.
 
 My Docker host is: [host and operating system]
-My Blue Iris web-server URL is: [complete address and port]
 
-Use the published versioned GHCR image and the project's compose.yaml. Keep the /data volume persistent, use the normal Docker network, and do not add a fixed subnet. Do not change my router, VLANs, BI recording/storage settings or existing footage.
+Build the current source using compose.build.yaml to get the current first-run
+setup flow. Keep the /data volume persistent. If port 8090 is occupied, select
+an available port using NVR_WATCH_PORT. Preserve the host's network settings.
 
-Build the current source, start the container, verify its health, and open the first-run connection form. Let me enter the recorder details and my existing BI administrator credentials myself in the settings page. Do not use the older 1.0.0 prebuilt image for this flow. Verify Test connection, Save settings and playback. Settings must survive container recreation. If testing a download, use an existing short recording and remove only the generated export copy.
+Start the container and open the portal. Let me enter the Blue Iris address,
+web-server port, and existing administrator credentials directly in the form.
+After setup, users sign in with their own Blue Iris accounts.
 
-Explain the container address, persistent volume, updates and settings backup. Tell me that browser playback currently has no audio; MP4 downloads retain audio when available. Do not put my passwords, private network details, encryption key or footage in a repository or public report.
+Explain the portal address, settings backup, and how to update the deployment.
+Do not put credentials, private connection details, settings files, or footage
+in a repository. Do not change Blue Iris recording settings or router settings.
 ```

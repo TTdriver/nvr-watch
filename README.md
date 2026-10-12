@@ -1,53 +1,27 @@
 # NVR Watch
 
-A standalone Blue Iris web portal for live cameras and recorded footage. Choose a camera, pick a day, and jump to a moment on the timeline. Download an entire listed recording segment as an MP4 with one click.
-
-This is a personal project that worked with Blue Iris 6 on Linux under Wine. It is shared as-is, at your own risk. The portal uses BI's web API, so its Docker host can be a different computer from the recorder. A Windows BI deployment has not yet been verified. Blue Iris, its license, UI3, cameras and footage are not included. This project is not affiliated with the Blue Iris vendor.
-
-## What you get
-
-- Camera search and live views.
-- Per-camera archives, a recording-day calendar and a day timeline.
-- Seeking, ten-second skip buttons, playback speed and adjacent-recording continuation.
-- MP4 preparation and automatic downloading, with Cancel while preparing.
-- An administrator settings page with connection testing.
-- Persistent, encrypted BI credentials and a configurable camera-list refresh interval.
-- Docker Compose and Portainer deployment, health checks and versioned container images.
-
-**Browser playback currently has no audio. Downloaded MP4s include recorded audio when present.** The current browser player uses BI's MJPEG stream, which carries video only. MP4s can retain HEVC/H.265 and need a player that supports the recording's codec.
-
-## How it works
-
-```text
-Browser → NVR Watch → Blue Iris web API → cameras and recordings
-```
-
-NVR Watch owns its interface, web server and sign-in flow. BI owns camera connections, recording, storage and retention. No UI3 files or libraries are loaded. UI3 may remain installed alongside it.
-
-Each visitor signs in using their own BI account, and BI's camera/clip permissions still apply. The BI account saved in Settings is used for connection tests and the administrator's “Open playback” button. It is not exposed to ordinary visitors and does not give them automatic access to cameras.
-
-BI passwords are never returned by the settings API. Saved passwords are encrypted with Fernet; the key and configuration live in the same protected Docker volume. Back up both together. Administrators with access to that volume can recover the credentials. Login passwords and BI session tokens are not logged, and BI tokens stay in server memory.
+A web portal for Blue Iris live cameras and recorded footage. Browse recordings by camera and date, use the timeline to find a moment, and download recording segments as MP4 files.
 
 ## Requirements
 
-- Docker Engine with Docker Compose v2, or Portainer on a standalone Docker host.
+- A Docker host with Docker Compose v2, or Portainer managing that host.
 - A working Blue Iris web server reachable from the Docker host.
-- A BI account with access to the cameras and recordings you want to view.
+- A Blue Iris administrator account for initial setup.
 - A current web browser.
 
-For MP4s, enable the BI account permission to create/export clips. Automatic deletion of completed temporary exports also requires BI's clip-delete permission. Without it, generated copies may remain in BI's Clipboard folder. NVR Watch only requests deletion of its verified generated products; original recordings are kept.
+Blue Iris, its license, cameras, and footage are not included. NVR Watch connects to the Blue Iris web API and does not change recording or storage settings.
 
 ## Prepare Blue Iris
 
-In BI Settings → Web server, enable the web server and note its port. Keep authentication required. Create or use an account in BI Settings → Users with the necessary camera and clip access.
+1. Enable the web server in **Blue Iris Settings → Web server** and note its port. Keep authentication enabled.
+2. Use an account with administrator access for initial setup.
+3. Confirm the web server is reachable from the Docker host. Use the recorder's actual address; `127.0.0.1` inside a container refers to that container.
 
-Verify that the BI web page works from the Docker host's network. Use the recorder's actual address and web-server port. When BI runs on another computer, `127.0.0.1` inside a Docker container refers to that container, not the recorder.
-
-If you use HTTPS, BI must present a certificate trusted by the container. Certificate validation is enabled. The portal does not configure BI, install cameras, change firewall rules or alter recording/storage settings.
+For MP4 downloads, the account needs permission to create/export clips. Automatic cleanup of temporary exports also requires clip-delete permission. Original recordings are retained.
 
 ## Install with Docker Compose
 
-The current source includes first-run connection setup and Blue Iris administrator sign-in without a separate access code. The published `1.0.0` image predates this change; build from source to use this flow. On your Docker host:
+The current source uses first-run connection setup without a separate access code. The published `1.0.0` image predates this update, so build from source for the current flow:
 
 ```bash
 git clone https://github.com/TTdriver/nvr-watch.git
@@ -55,118 +29,108 @@ cd nvr-watch
 docker compose -f compose.build.yaml up --build -d
 ```
 
-On first launch, the portal opens the recorder connection form automatically. Enter the recorder address and an existing Blue Iris administrator account. Connection details are saved only after Blue Iris verifies administrator access. No separate portal account or access code is required.
+Open `http://DOCKER_HOST_ADDRESS:8090/` in your browser.
 
-Open:
+If port 8090 is already in use, create a `.env` file in the project folder:
 
-```text
-http://DOCKER_HOST_ADDRESS:8090/settings.html
-```
-
-For initial setup:
-
-1. Choose HTTP or HTTPS.
-2. Enter your BI IP address or hostname, without a protocol or port in that field.
-3. Enter the BI web-server port.
-4. Enter an existing BI administrator username and password.
-5. Click **Test connection**.
-6. Click **Save and open playback**. This saves the connection and signs you in.
-
-The password field becomes empty after saving. “Saved — leave blank to keep it” means the encrypted password is retained. Enter a replacement only if you want to update it.
-
-Other visitors use `http://DOCKER_HOST_ADDRESS:8090/` and sign in with their own BI accounts. BI administrators can access Settings after signing in; ordinary BI users cannot. Settings access requires a reachable BI server and an administrator account. Any old `admin-access-code` file in an existing volume is ignored.
-
-To check the container:
-
-```bash
-docker compose ps
-docker compose logs --tail=50 nvr-watch
-```
-
-The health check verifies the portal itself. A disconnected BI server does not make the portal unhealthy, so you can still open Settings and fix the connection.
-
-## Install with Portainer
-
-In a standalone Docker environment, open **Stacks → Add stack**. Name the stack `nvr-watch`. Paste the contents of this repository's `compose.yaml` into the Web editor and deploy it.
-
-Open the Docker host on port 8090 and configure the recorder as described above. For the new setup flow before a new image release is published, build the current source on the Docker host and deploy that local image in Portainer.
-
-The Compose file uses a named volume for `/data` and `restart: unless-stopped`. There are no fixed IP addresses, custom subnets or `ipam` settings. Docker chooses the normal network from the host's configured address pools. The Docker host's existing network configuration must already avoid overlap with your LAN/VLANs.
-
-If port 8090 is occupied, set `NVR_WATCH_PORT` in Portainer's stack environment variables, or put this in a local `.env` file for Compose:
-
-```text
+```dotenv
 NVR_WATCH_PORT=8091
 ```
 
-The application still listens on 8090 inside its container.
+Start the deployment again and open the selected port.
 
-## Persistent settings and updates
+## Install with Portainer
 
-The named `nvr-watch-data` volume stores `settings.json` and `encryption.key`. Settings survive container restart, removal/recreation and upgrades as long as that volume is retained. Do not use `docker compose down --volumes` on an installation whose settings you want to keep.
-
-To update, select the desired published version by setting `NVR_WATCH_TAG` in `.env` or Portainer's stack variables. Then:
+Build the current source on the Docker host first:
 
 ```bash
-docker compose pull
-docker compose up -d
+git clone https://github.com/TTdriver/nvr-watch.git
+cd nvr-watch
+docker build -t nvr-watch:local .
 ```
 
-For example, the initial release uses `NVR_WATCH_TAG=1.0.0`. `latest` follows the newest published version. Versioned tags are preferable when you want a specific release.
+In Portainer, select the Docker environment and open **Stacks → Add stack**. Name the stack `nvr-watch`, then paste this into the web editor:
 
-Settings changes do not rebuild the image or require a container restart. Changing the recorder address resets playback sign-ins so users authenticate against the new recorder.
+```yaml
+services:
+  nvr-watch:
+    image: nvr-watch:local
+    pull_policy: never
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      - nvr-watch-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+volumes:
+  nvr-watch-data:
+```
 
-### Back up settings
+Deploy the stack. If port 8090 is occupied, change the first port number, such as `"8091:8090"`. Open the Docker host at that port.
 
-Run from your Compose folder while the container is running. Avoid changing Settings during the backup:
+## First launch and sign-in
+
+The first launch opens the recorder connection form:
+
+1. Choose HTTP or HTTPS.
+2. Enter the recorder's IP address or hostname, without a protocol or port.
+3. Enter the Blue Iris web-server port.
+4. Enter an existing Blue Iris administrator username and password.
+5. Select **Test connection**, then **Save and open playback**.
+
+Saving verifies administrator access, stores the connection, and signs you in. Future visitors sign in with their own Blue Iris accounts. Camera and recording permissions come from Blue Iris. Administrators can open **Settings** after sign-in; ordinary accounts cannot change the connection.
+
+Saved passwords are encrypted and never returned to the browser. A blank password field keeps the saved password. Old access-code files are ignored by the current source.
+
+## Persistent settings and backups
+
+The named data volume stores the connection settings and encryption key. Keep the same volume when recreating or updating the container. Do not use `docker compose down --volumes` if you want to retain settings.
+
+For a source-built Compose deployment, back up settings from the project folder:
 
 ```bash
 umask 077
-docker compose exec -T nvr-watch python -c "import tarfile,sys; tarfile.open(fileobj=sys.stdout.buffer,mode='w|gz').add('/data',arcname='data')" > nvr-watch-settings.tar.gz
+docker compose -f compose.build.yaml exec -T nvr-watch python -c "import tarfile,sys; tarfile.open(fileobj=sys.stdout.buffer,mode='w|gz').add('/data',arcname='data')" > nvr-watch-settings.tar.gz
 ```
 
-Protect the backup: it includes the encryption key and encrypted connection credentials. It does not include camera footage.
+Protect this backup: it contains encrypted credentials and the key needed to decrypt them. It does not contain footage.
 
-To restore your own trusted backup to a running deployment, then reload it:
+## Updates
+
+For a source-built Compose deployment:
 
 ```bash
-docker compose exec -T nvr-watch python -c "import tarfile,sys; tarfile.open(fileobj=sys.stdin.buffer,mode='r|gz').extractall(path='/',filter='data')" < nvr-watch-settings.tar.gz
-docker compose restart nvr-watch
+git pull --ff-only
+docker compose -f compose.build.yaml up --build -d
 ```
 
-## MP4 downloads and Cancel
+For Portainer, rebuild `nvr-watch:local` from the updated source on the same Docker host, then redeploy the stack using the local image. Retain its data volume.
 
-Click the arrow beside a recording. BI prepares the whole listed segment. Its button shows preparation progress and an **×** to cancel. When ready, the MP4 download starts automatically. Once the browser transfer starts, use the browser's download controls to cancel it.
-
-BI writes a temporary export in its managed storage. After a successful transfer, the portal asks BI to remove that generated copy. It also retries cleanup for cancelled exports. Native conversion can briefly continue after cancellation, even though the portal stops the requested download.
-
-Exports request the main stream without re-encoding. BI may require conversion for some recording types, and start/end boundaries can follow nearby keyframes. Large hourly recordings can take time and require temporary free storage on the recorder.
-
-Abandoned exports are checked for cleanup after an hour while the service and BI session remain available. Restarting the portal loses its in-memory export tracking; interrupted copies may then require manual cleanup in BI's Clipboard view.
+The separate `compose.yaml` uses published GHCR images. Until a newer release is published, its default `1.0.0` image still uses the older setup flow.
 
 ## Troubleshooting
 
-**The settings page asks for a code.** You are running the older 1.0.0 image. Build the current source for first-run setup without an access code. Once configured, sign in with your Blue Iris administrator account to access Settings.
+- **Portal unavailable:** confirm the container is running, check its logs, and confirm the host port is available and reachable.
+- **Blue Iris unavailable:** confirm its address, web-server port, authentication, and network access from the Docker host.
+- **Sign-in rejected:** use a Blue Iris account. Initial setup and Settings require administrator access.
+- **Settings requires sign-in:** sign in with a Blue Iris administrator account. It requires a reachable recorder.
+- **Settings still asks for an access code:** you are using the older 1.0.0 image. Build the current source.
+- **HTTPS connection fails:** use a certificate trusted by the container. Certificate validation is enabled.
+- **Settings disappeared:** confirm the deployment still mounts its original data volume.
 
-**Cannot reach Blue Iris.** Check the recorder address, selected protocol and port. Confirm its web server is enabled. Test from the Docker host, then check Windows Firewall and routing/firewall rules between VLANs. Use an address reachable by the container; browser access from a different network does not prove container access.
+Browser playback currently uses video-only MJPEG. Downloaded MP4s retain available recorded audio and may require a player supporting the recording's codec. Large exports need time and temporary storage on the recorder. Interrupted exports may need manual cleanup in Blue Iris's Clipboard folder.
 
-**Username or password rejected.** Use a BI user account, not the Windows account. Check its access restrictions in BI. A blank saved-password field preserves the existing credential; enter the corrected password explicitly.
-
-**HTTPS certificate verification failed.** Use a trusted BI certificate or install its issuing CA in a derived container image. The portal does not silently bypass certificate checks.
-
-**Camera works in BI but is missing here.** Check that the signed-in BI account has permission for that camera and its recordings.
-
-**Settings disappeared.** Confirm the same Docker volume is mounted at `/data`. Changing the Compose project/Portainer stack name can create a different volume. Restore the original volume or your backup.
-
-**The portal needs a new sign-in.** BI restarts, portal restarts and recorder-address changes invalidate sessions. Sign in again.
-
-**There is no browser audio.** This version uses video-only MJPEG playback. Available audio is preserved in MP4 downloads.
-
-This deployment uses local-network HTTP. For remote access, put the portal behind an HTTPS reverse proxy. The project does not open router ports or configure remote exposure.
+For remote access, use an HTTPS reverse proxy. This project does not configure router ports or remote access.
 
 ## Run without Docker
 
-The original Python service remains supported. You need Python 3.10 or newer with venv support and the pinned dependencies. On Debian/Ubuntu, install `python3-venv` if Python reports that ensurepip is missing:
+Python 3.10 or newer with venv support is required:
 
 ```bash
 python3 -m venv .venv
@@ -174,26 +138,6 @@ python3 -m venv .venv
 .venv/bin/python server.py --port 8090 --data-dir ./data
 ```
 
-Open the portal and complete first-run connection setup using an existing Blue Iris administrator account. On Windows, create the environment with `py -3 -m venv .venv` and use `.venv\Scripts\python.exe` instead. No Linux system service is installed by these commands.
+Open the portal and complete the same first-run setup. The optional Linux user-service installer is available through `python install.py --help`.
 
-The optional `install.py` installer installs a Linux user service. Its application files go in `~/.local/share/nvr-watch/`, persistent settings in `~/.config/nvr-watch/`, and its service in `~/.config/systemd/user/nvr-watch.service`. It starts with the user manager, normally at login. It does not configure automatic desktop login. See `python install.py --help`.
-
-## Source, builds and verification
-
-The source is in this repository. To build locally rather than pull GHCR:
-
-```bash
-git clone https://github.com/TTdriver/nvr-watch.git
-cd nvr-watch
-docker compose -f compose.build.yaml up --build -d
-```
-
-Run Python checks with `python test.py` and frontend checks with `node web/core.test.mjs`. `compose.test.yaml` and `tests/fake-bi.py` are isolated CI fixtures, not deployment instructions for a real recorder.
-
-GitHub Actions tests the app, builds and starts Docker Compose, verifies encrypted settings and connection testing against a fake BI service, recreates the container, then verifies persistence. Pushing a version tag such as `v1.0.0` publishes `ghcr.io/ttdriver/nvr-watch:1.0.0` for AMD64 and ARM64 after those checks pass. The base image, Python dependency and Actions revisions are pinned.
-
-Real BI 6 checks verified camera access, old-footage playback, connection testing, MP4 attachment delivery with HEVC video/AAC audio, and removal of generated export copies. Playback position is estimated from elapsed playback time, so recordings with gaps can differ from the displayed clock. Times use the browser's timezone.
-
-A source-only ZIP can be generated with `python build-package.py`. It excludes instance settings, credentials, logs, Wine prefixes and footage. To ask your own AI to install it, copy [AI-SETUP.md](AI-SETUP.md); that prompt is separate from these human instructions.
-
-Technical references: [Docker volumes](https://docs.docker.com/reference/compose-file/volumes/), [GHCR publication](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images), [credential encryption](https://cryptography.io/en/stable/fernet/).
+A source-only ZIP can be created with `python build-package.py`. It excludes instance settings, credentials, logs, and footage. For an installation prompt to give an AI assistant, see [AI-SETUP.md](AI-SETUP.md).

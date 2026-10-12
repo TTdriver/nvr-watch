@@ -251,7 +251,7 @@ class Handler(BaseHTTPRequestHandler):
   if path in {'/','/index.html','/index.htm','/login.html'} and not self.server.settings.public()['configured']:
    self.send_response(302);self.headers_common();self.send_header('Location','/settings.html');self.send_header('Cache-Control','no-store');self.send_header('Content-Length','0');self.end_headers();return
   relative='index.html' if path=='/' else path.lstrip('/')
-  if relative not in {'index.html','index.htm','login.html','login.js','styles.css','app.js','core.js','sample.svg','settings.html','settings.js'}:
+  if relative not in {'index.html','index.htm','login.html','login.js','styles.css','app.js','core.js','settings.html','settings.js'}:
    self.send_json(404,{'result':'fail'});return
   if relative=='index.htm':relative='index.html'
   file=WEB/relative
