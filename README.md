@@ -2,6 +2,12 @@
 
 A web portal for Blue Iris live cameras and recorded footage. Browse recordings by camera and date, use the timeline to find a moment, and download recording segments as MP4 files.
 
+<img width="1917" height="958" alt="image" src="https://github.com/user-attachments/assets/f75a4996-44b6-40d8-9d8f-233fbf92fc83" />
+
+<img width="1917" height="958" alt="image" src="https://github.com/user-attachments/assets/bf6ad342-0325-470c-a203-7b5fbfd1cf84" />
+
+
+
 ## Requirements
 
 - A Docker host with Docker Compose v2, or Portainer managing that host.
